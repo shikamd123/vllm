@@ -89,7 +89,7 @@ from vllm.version import __version__ as VLLM_VERSION
 
 logger = init_logger(__name__)
 
-HANDSHAKE_TIMEOUT_MINS = int(os.environ.get("VLLM_HANDSHAKE_TIMEOUT_MINS", "5"))
+HANDSHAKE_TIMEOUT_MINS = envs.VLLM_HANDSHAKE_TIMEOUT_MINS
 
 _R = TypeVar("_R")  # Return type for collective_rpc
 
@@ -1838,7 +1838,11 @@ class DPEngineCoreProc(EngineCoreProc):
     def add_request(self, request: Request, request_wave: int = 0):
         super().add_request(request, request_wave)
         # Wake other DP engines on first request to avoid collective hang.
-        if self.has_coordinator:
+        # ROCm multi-pod: also wake on wave 0's first request to prevent
+        # all-to-all collective hang when request_wave == current_wave == 0.
+        if self.has_coordinator and (
+            current_platform.is_rocm() or request_wave != self.current_wave
+        ):
             if request_wave > self.current_wave:
                 self.current_wave = request_wave
             if (

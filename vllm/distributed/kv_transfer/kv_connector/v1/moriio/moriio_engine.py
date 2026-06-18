@@ -314,10 +314,10 @@ class MoRIIOWriter:
             # Wide-EP multi-pod support: when the remote DP fan-out is split
             # across multiple pods, ``task.remote_ip`` (from ``meta.remote_host``)
             # only addresses the first pod. Resolve the per-rank host from the
-            # worker's ``remote_hosts`` list. Falls back to ``task.remote_ip``
+            # worker's ``multi_pod_hosts`` list. Falls back to ``task.remote_ip``
             # for single-pod deployments and on any indexing miss.
             _remote_ip = task.remote_ip
-            _hosts = list(getattr(self.worker, "remote_hosts", []) or [])
+            _hosts = list(getattr(self.worker, "multi_pod_hosts", []) or [])
             _dp_local = int(getattr(self.worker, "remote_dp_size_local", 0) or 0)
             if _hosts and _dp_local > 0:
                 _pod_idx = int(request_info.decode_dp_rank) // _dp_local
