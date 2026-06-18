@@ -437,7 +437,7 @@ class ReqMeta:
     tp_size: int
     remote_dp_size: int
     # Multi-pod: list of remote pod IPs indexed by pod_idx.
-    remote_hosts: list[str] = field(default_factory=list)
+    multi_pod_hosts: list[str] = field(default_factory=list)
     # Per-pod DP size; 0 means fallback to remote_dp_size.
     remote_dp_size_local: int = 0
 
@@ -475,6 +475,12 @@ class MoRIIOConnectorMetadata(KVConnectorMetadata):
         else:
             try:
                 remote_host = kv_transfer_params["remote_host"]
+                if not remote_host:
+                    raise ValueError(
+                        f"request_id {request_id!r} does not embed a peer "
+                        f"zmq_address and kv_transfer_params['remote_host'] is "
+                        f"empty; cannot route MoRI-IO transfer"
+                    )
                 remote_handshake_port = int(
                     kv_transfer_params["remote_handshake_port"]
                 )
@@ -486,17 +492,12 @@ class MoRIIOConnectorMetadata(KVConnectorMetadata):
                     f"more sidecar-fallback keys (need remote_host, "
                     f"remote_handshake_port, remote_notify_port): {e}"
                 ) from e
-            if not remote_host:
-                raise ValueError(
-                    f"request_id {request_id!r} does not embed a peer "
-                    f"zmq_address and kv_transfer_params['remote_host'] is "
-                    f"empty; cannot route MoRI-IO transfer"
-                )
 
-        # Multi-pod: use remote_hosts list or fallback to single host.
-        _remote_hosts = kv_transfer_params.get("remote_hosts") or [remote_host]
-        if not isinstance(_remote_hosts, list):
-            _remote_hosts = [str(_remote_hosts)]
+        # Multi-pod: use multi_pod_hosts list or fallback to single host.
+        _pod_hosts = kv_transfer_params.get("remote_hosts") or [remote_host]
+        if not isinstance(_pod_hosts, list):
+            _pod_hosts = [_pod_hosts]
+        _pod_hosts = [str(h) for h in _pod_hosts]
         _remote_dp_size_local = int(
             kv_transfer_params.get(
                 "remote_dp_size_local",
@@ -515,7 +516,7 @@ class MoRIIOConnectorMetadata(KVConnectorMetadata):
             remote_notify_port=int(remote_notify_port),
             tp_size=kv_transfer_params.get("tp_size", 1),
             remote_dp_size=kv_transfer_params.get("remote_dp_size", 1),
-            remote_hosts=[str(h) for h in _remote_hosts],
+            multi_pod_hosts=_pod_hosts,
             remote_dp_size_local=_remote_dp_size_local,
         )
         if write_mode:
